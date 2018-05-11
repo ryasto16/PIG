@@ -1,0 +1,240 @@
+//Ryan Stonegraber
+
+import java.util.*;
+
+import javafx.application.Application;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.Stage;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+
+public class PigClient extends Application{
+
+    int turnTotal = 0;
+    int number = 0;
+    int playerScore = 0;
+    int computerScore = 0;
+    boolean winner = false;
+
+    public static void main (String[] args){
+
+        launch(args);
+
+    }
+
+    public void start(Stage primaryStage) {
+
+        primaryStage.setTitle("PIG");
+        GridPane grid = new GridPane();
+
+        grid.setAlignment(Pos.CENTER);
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(25, 25, 25, 25));
+
+        Text scenetitle = new Text("PIG");
+        scenetitle.setFont(Font.font("Impact", FontWeight.EXTRA_BOLD, 50));
+        grid.add(scenetitle,1, 0);
+
+        VBox userTurn =new VBox(10);
+        Label rolled = new Label("Rolled:");
+        Image one = new Image("1.png");
+        Image two = new Image("2.png");
+        Image three = new Image("3.png");
+        Image four = new Image("4.png");
+        Image five = new Image("5.png");
+        Image six = new Image("6.png");
+        ImageView imageView = new ImageView();
+        Label turnTotalLabel = new Label("Turn Total:");
+        Button again = new Button("Roll");
+        Button bankPoints = new Button("Bank Points");
+        userTurn.getChildren().addAll(rolled, imageView, turnTotalLabel, again, bankPoints);
+        grid.add(userTurn, 0,1);
+
+        VBox scores = new VBox(20);
+        Label yourScore = new Label("Your Score: ");
+        Label yourValue = new Label("0");
+        yourValue.setFont(Font.font("Tahoma", FontWeight.BOLD,30));
+        Label opponentScore = new Label("Opponent Score: ");
+        Label opponentValue = new Label("0");
+        opponentValue.setFont(Font.font("Tahoma", FontWeight.BOLD,30));
+        scores.getChildren().addAll(yourScore, yourValue, opponentScore, opponentValue);
+        grid.add(scores, 2, 1);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("PIG");
+        alert.setHeaderText(null);
+        alert.setContentText("Welcome to PIG! The objective of this game is to get 100 points." +
+                " You take turns rolling a dice. If a 1 is rolled you lose all your points for that" +
+                " turn. You can choose to keep rolling or bank your points. If points are banked, they " +
+                "will be added to your total game points and cannot be lost. \n\nYou will roll first.");
+        alert.showAndWait();
+
+        Scene scene = new Scene(grid, 400, 400);
+        primaryStage.setScene(scene);
+        primaryStage.show();
+
+        bankPoints.setVisible(false);
+
+        again.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent event) {
+
+                Random random = new Random();
+                number = random.nextInt(6)+1;
+
+                switch (number){
+                    case 1: imageView.setImage(one);
+                        break;
+                    case 2: imageView.setImage(two);
+                        break;
+                    case 3: imageView.setImage(three);
+                        break;
+                    case 4: imageView.setImage(four);
+                        break;
+                    case 5: imageView.setImage(five);
+                        break;
+                    case 6: imageView.setImage(six);
+                        break;
+                }
+
+                bankPoints.setVisible(true);
+
+                if (number == 1){
+//                    rolled.setText("Rolled: " + Integer.toString(number));
+                    bankPoints.setVisible(false);
+                    turnTotal = 0;
+                    turnTotalLabel.setText("Turn Total: " + Integer.toString(turnTotal));
+                    alert.setContentText("You Rolled a 1 and lost your points for this turn!");
+                    alert.showAndWait();
+
+                    //opponent turn
+                    try{
+                        String host = "localhost";
+                        int port = 59153;
+
+                        Socket socket = new Socket(host, port);
+                        BufferedWriter socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                        BufferedReader socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                        socketWriter.write("oppTurn\n");
+                        socketWriter.flush();
+
+                        String oppTurnScore = socketReader.readLine();
+
+                        System.out.println("Opponents score for this turn: " + oppTurnScore);
+
+                        computerScore += Integer.valueOf(oppTurnScore);
+                        opponentValue.setText(Integer.toString(computerScore));
+
+                        alert.setContentText("Opponent rolled " + oppTurnScore + " for their turn");
+                        alert.showAndWait();
+
+                        socketWriter.close();
+                        socketReader.close();
+                        socket.close();
+
+                        if (computerScore>99){
+                            primaryStage.hide();
+                            alert.setHeaderText("Opponent won!");
+                            alert.setContentText("Your score: " + playerScore + "\nOpponent Score: " + computerScore);
+                            alert.showAndWait();
+                            System.exit(0);
+                        }
+
+                    } catch (Exception exception) {
+                        Alert alertError = new Alert(Alert.AlertType.ERROR);
+                        alertError.setTitle("Error");
+                        alertError.setHeaderText(null);
+                        alertError.setContentText("ERROR: " + exception.getMessage());
+                        alertError.showAndWait();
+                        exception.printStackTrace(System.err);
+                    }
+                } else{
+                    turnTotal+=number;
+                    turnTotalLabel.setText("Turn Total: " + Integer.toString(turnTotal));
+//                    rolled.setText("Rolled: " + Integer.toString(number));
+                }
+
+            }
+        });
+
+        bankPoints.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent event) {
+                bankPoints.setVisible(false);
+                playerScore += turnTotal;
+                turnTotal = 0;
+                number = 0;
+//                rolled.setText("Rolled: ");
+                turnTotalLabel.setText("Turn Total: ");
+                yourValue.setText(Integer.toString(playerScore));
+                if (playerScore>99){
+                    primaryStage.hide();
+                    alert.setHeaderText("You won!");
+                    alert.setContentText("Your score: " + playerScore + "\nOpponent Score: " + computerScore);
+                    alert.showAndWait();
+                    System.exit(0);
+                } else{
+
+                    //Opponent Turn
+                    try{
+                        String host = "localhost";
+                        int port = 59153;
+
+                        Socket socket = new Socket(host, port);
+                        BufferedWriter socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                        BufferedReader socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                        socketWriter.write("oppTurn\n");
+                        socketWriter.flush();
+
+                        String oppTurnScore = socketReader.readLine();
+
+                        computerScore += Integer.valueOf(oppTurnScore);
+                        opponentValue.setText(Integer.toString(computerScore));
+
+                        alert.setContentText("Opponent rolled " + oppTurnScore + " for their turn");
+                        alert.showAndWait();
+
+                        socketWriter.close();
+                        socketReader.close();
+                        socket.close();
+
+                        if (computerScore>99){
+                            primaryStage.hide();
+                            alert.setHeaderText("Opponent won!");
+                            alert.setContentText("Your score: " + playerScore + "\nOpponent Score: " + computerScore);
+                            alert.showAndWait();
+                            System.exit(0);
+                        }
+
+                    } catch (Exception exception) {
+                        Alert alertError = new Alert(Alert.AlertType.ERROR);
+                        alertError.setTitle("Error");
+                        alertError.setHeaderText(null);
+                        alertError.setContentText("ERROR: " + exception.getMessage());
+                        alertError.showAndWait();
+                        exception.printStackTrace(System.err);
+                    }
+                }
+            }
+        });
+
+
+    }
+    
+}
